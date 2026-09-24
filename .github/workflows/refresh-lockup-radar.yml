@@ -1,0 +1,138 @@
+name: Auto refresh lockup radar
+
+# 自动刷新「A股未来90天限售解禁预警雷达」
+#
+# 触发方式：
+#   1) 定时：每周一 08:30 (北京时间) 自动跑一次
+#   2) 手动：仓库页 Actions -> 本工作流 -> Run workflow（可选指定基准日）
+#
+# 它做的事：抓取东财最新解禁数据 -> 重建看板 -> 更新仓库根目录的
+# index.html 与 README.md -> 自动提交。提交后 GitHub Pages 会自动重新构建。
+#
+# 说明：`.nojekyll` 不由本工作流维护（它是可选的）。
+
+on:
+  schedule:
+    # GitHub Actions 的 cron 一律按 UTC 计时。
+    # 每周一 00:30 UTC = 每周一 08:30 北京时间 (UTC+8)。
+    - cron: "30 0 * * 1"
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "基准日 YYYY-MM-DD（留空 = 用运行当天）"
+        required: false
+        default: ""
+
+# 需要写权限才能把新生成的页面提交回仓库
+permissions:
+  contents: write
+
+# 避免两次运行同时提交而互相覆盖
+concurrency:
+  group: lockup-radar-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+      # 基准日：手动触发时用输入值，否则用运行当天。
+      # 用 shell 生成而不是 python，避免多一步依赖。
+      - name: Resolve base date
+        id: base
+        run: |
+          IN="${{ github.event.inputs.base }}"
+          if [ -n "$IN" ]; then
+            BASE="$IN"
+          else
+            # 用北京时间（东八区），与页面口径一致
+            BASE="$(TZ=Asia/Shanghai date +%Y-%m-%d)"
+          fi
+          case "$BASE" in
+            [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+            *) echo "::error::基准日格式不对：$BASE （应为 YYYY-MM-DD）"; exit 1 ;;
+          esac
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "本次基准日 = $BASE"
+
+      - name: Fetch data and rebuild dashboard
+        run: |
+          # 自动定位脚本：优先 scripts/run_all.py（正常形态），
+          # 退回根目录 run_all.py（网页上传丢目录时的平铺形态）。
+          if [ -f scripts/run_all.py ]; then
+            ENTRY=scripts/run_all.py
+          elif [ -f run_all.py ]; then
+            ENTRY=run_all.py
+          else
+            echo "::error::找不到 run_all.py（scripts/ 与仓库根目录都没有）"
+            exit 1
+          fi
+          echo "使用入口：$ENTRY"
+          python "$ENTRY" "${{ steps.base.outputs.base }}"
+
+      # 关键：把产物同步到仓库根目录（Pages 实际服务的位置）。
+      # 不提交 data/ 与 _run_params.json —— 前者是中间产物，
+      # 后者是「本次运行的参数」，提交回去会固化成历史值、干扰手动运行。
+      - name: Sync artifacts to repository root
+        run: |
+          cp deploy/index.html ./index.html
+          cp deploy/README.md  ./README.md
+
+      - name: Show what changed
+        run: |
+          git status --short
+          echo "---"
+          # 注意：必须「先 add 再比对索引」，不能用 git diff 直接比对工作区。
+          # git diff(工作区) 对「未跟踪的新文件」看不到差异 —— 首次运行时
+          # index.html 是全新文件，会被误判成「无变化」而跳过提交（静默失败）。
+          git add -- index.html README.md
+          if git diff --cached --quiet -- index.html README.md; then
+            echo "index.html 与 README.md 与仓库现有内容一致（数据无变化）"
+          else
+            echo "检测到内容变化，将提交"
+          fi
+
+      # 只在内容真的变化时才提交，避免每天产生一个空提交。
+      # ★ 记得先 git add，并比对索引（--cached），否则新文件会被当成「无变化」。
+      - name: Commit and push if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- index.html README.md
+          if git diff --cached --quiet -- index.html README.md; then
+            echo "::notice::数据无变化，跳过提交"
+            exit 0
+          fi
+          git commit -m "chore(auto): refresh lockup radar (base ${{ steps.base.outputs.base }})"
+          git push
+          echo "::notice::已提交并推送，GitHub Pages 将自动重新构建"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### 解禁预警雷达 · 自动刷新结果"
+            echo ""
+            echo "- 基准日：\`${{ steps.base.outputs.base }}\`"
+            echo "- 状态：${{ job.status }}"
+            echo ""
+            if [ -f deploy/index.html ]; then
+              echo "- 产物：\`index.html\` $(wc -c < deploy/index.html) 字节"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
