@@ -114,7 +114,25 @@ json.dump(detail, open(os.path.join(D, "top30.json"), "w", encoding="utf-8"), en
 json.dump(q, open(os.path.join(D, "quotes_raw.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 # ---------- 3. 代表股详情 ----------
-PICKS = ["601328", "688795", "601088"]
+# 代表股动态挑选：固定清单里的股票会随时间滚出 90 天窗口
+# （如 601088 中国神华解禁日 2026-10-08，10-12 起的窗口已不包含它），
+# 写死清单会让 build_data.py 的 next(...) 抛 StopIteration、整条流水线失败。
+# 规则：① 优先保留偏好清单中仍在窗口内的；② 不足 3 只时先按解禁市值最大、
+#       ③ 再按占流通盘比例最高补齐。
+PREF = ["601328", "688795", "601088"]
+in_win = {r["SECURITY_CODE"] for r in rows}
+PICKS = [c for c in PREF if c in in_win]
+for keyfn in (lambda x: -(x.get("LIFT_MARKET_CAP") or 0),
+              lambda x: -(x.get("FREE_RATIO") or 0)):
+    for r in sorted(rows, key=keyfn):
+        if len(PICKS) >= 3:
+            break
+        c = r["SECURITY_CODE"]
+        if c not in PICKS:
+            PICKS.append(c)
+    if len(PICKS) >= 3:
+        break
+print(f"[代表股] 挑选（共 {len(PICKS)} 只）：{' '.join(PICKS)}")
 det = {}
 for c in PICKS:
     hist = dc("RPT_LIFT_STAGE", f'(SECURITY_CODE="{c}")', size=40, sort="FREE_DATE")
