@@ -79,15 +79,13 @@ padding:0 0 40px}
 header{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
 background:var(--hd-grad)}
 .hd-in{max-width:1280px;margin:0 auto;padding:22px 18px 18px;display:flex;gap:22px;align-items:center;flex-wrap:wrap}
-.radar{width:76px;height:76px;flex:0 0 76px;border-radius:50%;position:relative;
-background:radial-gradient(circle,rgba(34,211,238,.16),rgba(34,211,238,.02) 68%,transparent 70%);
-border:1px solid rgba(34,211,238,.45);box-shadow:0 0 22px rgba(34,211,238,.16) inset}
-.radar::before,.radar::after{content:"";position:absolute;border-radius:50%;border:1px solid rgba(34,211,238,.28)}
-.radar::before{inset:15px}.radar::after{inset:29px}
-.sweep{position:absolute;inset:0;border-radius:50%;
-background:conic-gradient(from 0deg,rgba(255,77,79,0),rgba(255,77,79,0) 300deg,rgba(255,77,79,.42) 352deg,rgba(255,140,66,.85));
-animation:spin 3.4s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* 雷达图标（inline SVG）：原 CSS 版用 conic-gradient+inset，老 Android WebView
+   不支持会退化成空心圆；SVG+SMIL 全版本兼容，明暗主题用 CSS 类切换描边色 */
+.radar{width:76px;height:76px;flex:0 0 76px;display:block}
+.radar .rd-bg{fill:rgba(34,211,238,.10)}
+.radar .rd-ring{fill:none;stroke:rgba(34,211,238,.45);stroke-width:1}
+.radar .rd-ring2,.radar .rd-ring3{stroke:rgba(34,211,238,.28)}
+.radar .rd-dot{fill:rgba(34,211,238,.9)}
 .hd-t{flex:1 1 380px}
 h1{font-size:23px;letter-spacing:.5px}
 h1 em{font-style:normal;color:var(--orange)}
@@ -237,9 +235,9 @@ font-size:12.5px;font-family:inherit;cursor:pointer;white-space:nowrap;line-heig
 .sw-both{background:var(--red2)}.sw-high{background:var(--red)}
 .sw-near{background:var(--orange)}.sw-normal{background:var(--cyan)}
 .sw-neu{background:var(--mut)}.sw-amber{background:var(--amber)}
-html[data-theme="light"] .radar{border-color:rgba(11,111,136,.4);
-background:radial-gradient(circle,rgba(11,111,136,.1),rgba(11,111,136,.02) 68%,transparent 70%)}
-html[data-theme="light"] .radar::before,html[data-theme="light"] .radar::after{border-color:rgba(11,111,136,.25)}
+html[data-theme="light"] .radar .rd-bg{fill:rgba(11,111,136,.06)}
+html[data-theme="light"] .radar .rd-ring{stroke:rgba(11,111,136,.4)}
+html[data-theme="light"] .radar .rd-ring2,html[data-theme="light"] .radar .rd-ring3{stroke:rgba(11,111,136,.25)}
 /* ---------- 内联 SVG 图表语义类（明暗两套走 token） ---------- */
 .sv-grid{stroke:var(--c-grid)}
 .sv-axisline{stroke:var(--c-axisline)}
@@ -276,7 +274,24 @@ html[data-theme="light"] .dp7{fill:#6b7c90;background:#6b7c90}
 <body>
 <header>
   <div class="hd-in">
-    <div class="radar"><div class="sweep"></div></div>
+    <svg class="radar" viewBox="0 0 76 76" width="76" height="76" role="img" aria-label="解禁预警雷达">
+      <defs>
+        <linearGradient id="rdSw" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#ff4d4f" stop-opacity="0"/>
+          <stop offset=".85" stop-color="#ff4d4f" stop-opacity=".42"/>
+          <stop offset="1" stop-color="#ff8c42" stop-opacity=".85"/>
+        </linearGradient>
+      </defs>
+      <circle class="rd-bg" cx="38" cy="38" r="37.5"/>
+      <circle class="rd-ring" cx="38" cy="38" r="37.5"/>
+      <circle class="rd-ring rd-ring2" cx="38" cy="38" r="23"/>
+      <circle class="rd-ring rd-ring3" cx="38" cy="38" r="9.5"/>
+      <g>
+        <path d="M38 38 L38 2 A36 36 0 0 1 65.6 14.9 Z" fill="url(#rdSw)"/>
+        <animateTransform attributeName="transform" type="rotate" from="0 38 38" to="360 38 38" dur="3.4s" repeatCount="indefinite"/>
+      </g>
+      <circle class="rd-dot" cx="38" cy="38" r="2"/>
+    </svg>
     <div class="hd-t">
       <h1>A股 <em>未来 90 天限售解禁预警雷达</em></h1>
       <div class="hd-sub">
