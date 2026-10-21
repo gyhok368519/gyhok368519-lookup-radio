@@ -126,10 +126,14 @@ tcap = [{"code": i["code"], "name": i["name"], "cap": round(i["cap_now_yi"], 2),
          "risk": i["risk"], "cat": i["cat"]} for i in top]
 
 # ---------- 代表股详情 ----------
+# 清单跟随 fetch_quotes.py 动态挑选写入 picks_detail.json 的键（均在窗口内），
+# 不再写死三只；此处再兜一层防御：不在明细里的键直接跳过，绝不让流水线崩溃。
 picks = []
-PICKS = ["601328", "688795", "601088"]
-for c in PICKS:
-    it = next(i for i in items if i["code"] == c)
+for c in det:
+    it = next((i for i in items if i["code"] == c), None)
+    if it is None:
+        print(f"[代表股] {c} 不在本窗口解禁明细中，跳过")
+        continue
     h = det[c]["history"]
     hist = [{
         "date": str(x.get("FREE_DATE"))[:10],
