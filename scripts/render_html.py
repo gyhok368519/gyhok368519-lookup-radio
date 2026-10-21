@@ -252,6 +252,13 @@ C_ORIG_STRAT = TMAP["原股东+战略配售"]["cap"]
 C_APPEND = TMAP["追加承诺限售股"]["cap"]
 C_EQUITY = TMAP["股权激励/股改"]
 COMBO = C_ORIG_STRAT + C_APPEND
+# 解读文案动态取数：市值最大 / 占流通盘最高的批次随窗口滚动，不写死个股
+BIG_P = max(data["items"], key=lambda i: i["cap_now_yi"])
+HI_P = max(data["items"], key=lambda i: i["float_ratio_pct"])
+NO_PX = [i for i in data["items"] if not i["px"]]
+NO_PX_NOTE = ("；无参考价个股 " + "、".join(
+    f"{i['code']}（{i['name']}）市值计 0，仅计入批次与个股数" for i in NO_PX)
+    if NO_PX else "")
 
 CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
@@ -694,7 +701,7 @@ HTML = f"""<!DOCTYPE html>
         <div class="nrow"><span class="mk">02</span><span><b>节奏极不均匀：</b>高峰周 <b>{OV['peak_week']}</b> 单周解禁 <b>{fc(OV['peak_cap'])}</b>（{OV['peak_n']} 批），是最低周 {lo_w['range']}（{fc(lo_w['cap'])}）的 <b>{OV['peak_cap']/max(lo_w['cap'],1):.0f} 倍</b>；次高峰 {pk2_w['range']}（{fc(pk2_w['cap'])}，{pk2_w['n']} 批）与高峰周构成两个显著压力簇。</span></div>
         <div class="nrow"><span class="mk">03</span><span><b>风险集中在"高比例"：</b>占流通盘 ≥30% 的 <b>{num(OV['hi_ratio_n'])}</b> 批合计 <b>{fc(OV['hi_ratio_cap'])}</b>，占全部解禁市值 <b>{OV['hi_ratio_cap']/OV['total_cap']*100:.1f}%</b>。科创板次新股与北交所个股因流通盘小，解禁比例常超 100%，是冲击弹性最大的部分。</span></div>
         <div class="nrow"><span class="mk">04</span><span><b>类型：原股东限售 + 追加承诺是主力。</b>「原股东+战略配售」{fc(C_ORIG_STRAT)}、「追加承诺限售股」{fc(C_APPEND)}，两者合计 <b>{fc(COMBO)}</b>，占合计解禁市值 <b>{COMBO/OV['total_cap']*100:.1f}%</b>。股权激励类批次最多（<b>{num(C_EQUITY['n'])}</b> 批）但市值仅 {fc(C_EQUITY['cap'])}，实际冲击有限。</span></div>
-        <div class="nrow"><span class="mk">05</span><span><b>大市值 ≠ 高减持概率。</b>交通银行（{fc(data['picks'][0]['cap_yi'])}，占流通盘 {data['picks'][0]['ratio']:.1f}%）与中国神华（{fc(data['picks'][2]['cap_yi'])}，占流通盘仅 {data['picks'][2]['ratio']:.1f}%）限售方均为国资，规模大但减持意愿通常低；{data['picks'][1]['name']}（占流通盘 {data['picks'][1]['ratio']:.0f}%）等次新科技股原始股东多为财务投资人，减持概率显著更高。<b>重点跟踪减持计划公告，而非解禁表本身。</b></span></div>
+        <div class="nrow"><span class="mk">05</span><span><b>大市值 ≠ 高减持概率。</b>解禁市值最大的 {BIG_P['name']}（{fc(BIG_P['cap_now_yi'])}，占流通盘 {BIG_P['float_ratio_pct']:.1f}%）规模虽大，但若限售方为国资/产业资本，减持意愿通常较低；占流通盘比例最高的 {HI_P['name']}（{HI_P['float_ratio_pct']:.0f}%）这类高比例解禁多见于次新股，原始股东多为财务投资人，减持概率显著更高。<b>重点跟踪减持计划公告，而非解禁表本身。</b></span></div>
       </div></div>
     </div>
     <div class="panel">
@@ -712,7 +719,7 @@ HTML = f"""<!DOCTYPE html>
 
   <div class="warnbar">
     <b>使用须知：</b>解禁（限售股上市流通）仅代表股份变得可交易，<b>不等于股东会立即减持</b>。实际抛压取决于限售方性质（国资 / 产业资本 / 财务投资人）、减持新规约束、股价位置与公司公告。请以交易所披露的<b>减持计划公告</b>为准，本页仅作解禁排期与压力分布的线索提示。<br>
-    <b>数据口径：</b>解禁数据取自东方财富数据中心 <code>RPT_LIFT_STAGE</code>，筛选条件为解禁日期落在 <b>{M['base']} ~ {M['window_end']}</b>；行情为腾讯财经最新收盘快照；分红取自东方财富 <code>RPT_SHAREBONUS_DET</code>，其中 <code>PRETAX_BONUS_RMB</code> 已按「每 10 股派息」口径换算为每股。北交所个股 <code>920201</code>（百瑞吉）暂无参考价，市值计 0，但仍计入批次与个股数。
+    <b>数据口径：</b>解禁数据取自东方财富数据中心 <code>RPT_LIFT_STAGE</code>，筛选条件为解禁日期落在 <b>{M['base']} ~ {M['window_end']}</b>；行情为腾讯财经最新收盘快照；分红取自东方财富 <code>RPT_SHAREBONUS_DET</code>，其中 <code>PRETAX_BONUS_RMB</code> 已按「每 10 股派息」口径换算为每股{NO_PX_NOTE}。
   </div>
 </div>
 
