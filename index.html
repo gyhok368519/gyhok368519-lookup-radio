@@ -9,7 +9,17 @@
 /* 在 <head> 里同步执行：先把 data-theme 定下来，避免亮/暗闪烁 */
 (function(){
  var t = "dark";
- try { var s = localStorage.getItem("radar-theme"); if (s === "light" || s === "dark") t = s; } catch (e) {}
+ try {
+   var s = localStorage.getItem("radar-theme");
+   if (s === "light" || s === "dark") { t = s; }
+   else {
+     var app = localStorage.getItem("pb_calc_theme");
+     if (app === "light" || app === "dark") { t = app; }
+     else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) { t = "light"; }
+   }
+ } catch (e) {
+   try { if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) { t = "light"; } } catch (e2) {}
+ }
  document.documentElement.setAttribute("data-theme", t);
 })();
 </script>
