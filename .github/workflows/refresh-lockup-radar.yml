@@ -128,6 +128,16 @@ jobs:
           git push
           echo "::notice::已提交并推送，GitHub Pages 将自动重新构建"
 
+      # 刷新 jsDelivr CDN 缓存：外部消费方（如 stock-valuation 的雷达页备用源）
+      # 经 jsDelivr 读取本仓库 index.html，分支内容默认缓存 12 小时；
+      # 提交后主动 purge，让 CDN 几分钟内拿到新页。失败仅告警不中断。
+      - name: Purge jsDelivr CDN cache
+        if: always()
+        run: |
+          curl -sf "https://purge.jsdelivr.net/gh/gyhok368519/gyhok368519-lookup-radio@main/index.html" \
+            && echo "::notice::jsDelivr 缓存已刷新" \
+            || echo "::warning::jsDelivr purge 失败（不影响数据正确性，CDN 最迟 12 小时后自动过期）"
+
       - name: Summary
         if: always()
         run: |
