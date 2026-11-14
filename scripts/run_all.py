@@ -2,7 +2,7 @@
 """★ 一条命令跑完全流程（手工刷新用这个）
 
 用法（在项目根目录 D:\\解禁预警 下）：
-    python scripts/run_all.py                   基准日 = 今天，窗口 = 今天 + 90 天
+    python scripts/run_all.py                   基准日 = 最新交易日（周末/节假日自动回退），窗口 = 基准日 + 90 天
     python scripts/run_all.py 2026-12-23        指定基准日
     python scripts/run_all.py --no-package      跳过 deploy/ 打包
 
@@ -44,7 +44,7 @@ def _find_root(start):
 ROOT = _find_root(HERE)
 SCRIPTS = HERE if os.path.basename(HERE) != os.path.basename(ROOT) else ROOT
 sys.path.insert(0, HERE)
-from config import resolve, save, today, DATA, DATE_RE   # noqa: E402
+from config import resolve, save, latest_trade_date, DATA, DATE_RE   # noqa: E402
 
 PY = sys.executable
 ENV = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
@@ -90,7 +90,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     do_pkg = "--no-package" not in sys.argv
 
-    raw = args[0] if args else today()
+    raw = args[0] if args else latest_trade_date()
     if not DATE_RE.match(raw):
         print("基准日格式不对：{}（应为 YYYY-MM-DD）".format(raw))
         return 2

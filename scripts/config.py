@@ -87,6 +87,28 @@ def today():
     return datetime.now().strftime("%Y-%m-%d")
 
 
+def latest_trade_date():
+    """最新交易日：取腾讯行情上证指数的最后报价时间戳（sh000001 字段30）。
+
+    周末/法定节假日查询时自动回退到上一交易日；接口失败时回退到今天。
+    """
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "https://qt.gtimg.cn/q=sh000001",
+            headers={"User-Agent": "Mozilla/5.0"})
+        vals = urllib.request.urlopen(req, timeout=10).read() \
+            .decode("gbk", "replace").split('"')[1].split("~")
+        ts = vals[30]                      # 形如 20261113150003
+        if not (len(ts) >= 8 and ts[:8].isdigit()):
+            raise ValueError("timestamp 格式异常: %r" % ts)
+        d = "%s-%s-%s" % (ts[:4], ts[4:6], ts[6:8])
+        datetime.strptime(d, "%Y-%m-%d")   # 格式自检，异常则走回退
+        return d
+    except Exception:
+        return today()
+
+
 def generate():
     """页面/报告上标注的「生成时间」= 真实运行日期（不是基准日）。"""
     return today()

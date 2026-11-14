@@ -3,8 +3,11 @@ name: Auto refresh lockup radar
 # 自动刷新「A股未来90天限售解禁预警雷达」
 #
 # 触发方式：
-#   1) 定时：每周一 08:30 (北京时间) 自动跑一次
-#   2) 手动：仓库页 Actions -> 本工作流 -> Run workflow（可选指定基准日）
+#   1) 定时：每个交易日（周一~周五）16:30 (北京时间) A股收盘后自动跑一次；
+#      遇周末/法定节假日不休市判断由脚本完成 —— 基准日自动取最新交易日，
+#      数据与上一交易日相同时自动跳过提交，不会产生空 commit。
+#   2) 手动：仓库页 Actions -> 本工作流 -> Run workflow（可选指定基准日，
+#      留空则自动取最新交易日）
 #
 # 它做的事：抓取东财最新解禁数据 -> 重建看板 -> 更新仓库根目录的
 # index.html 与 README.md -> 自动提交。提交后 GitHub Pages 会自动重新构建。
@@ -14,12 +17,12 @@ name: Auto refresh lockup radar
 on:
   schedule:
     # GitHub Actions 的 cron 一律按 UTC 计时。
-    # 每周一 00:30 UTC = 每周一 08:30 北京时间 (UTC+8)。
-    - cron: "30 0 * * 1"
+    # 周一~周五 08:30 UTC = 周一~周五 16:30 北京时间 (UTC+8)，A股收盘后。
+    - cron: "30 8 * * 1-5"
   workflow_dispatch:
     inputs:
       base:
-        description: "基准日 YYYY-MM-DD（留空 = 用运行当天）"
+        description: "基准日 YYYY-MM-DD（留空 = 自动取最新交易日）"
         required: false
         default: ""
 
@@ -52,8 +55,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install requests
 
-      # 基准日：手动触发时用输入值，否则用运行当天。
-      # 用 shell 生成而不是 python，避免多一步依赖。
+      # 基准日：手动触发时用输入值，否则自动取「最新交易日」。
+      # 最新交易日由 config.latest_trade_date() 查腾讯行情解析（周末/节假日
+      # 自动回退上一交易日；接口失败回退运行当天），与本地刷新口径一致。
       - name: Resolve base date
         id: base
         run: |
@@ -61,8 +65,9 @@ jobs:
           if [ -n "$IN" ]; then
             BASE="$IN"
           else
-            # 用北京时间（东八区），与页面口径一致
-            BASE="$(TZ=Asia/Shanghai date +%Y-%m-%d)"
+            # 自动定位 config.py：优先 scripts/ 子目录，退回仓库根（平铺形态）
+            CFG="$( [ -f scripts/config.py ] && echo scripts || echo . )"
+            BASE="$(python -c "import sys; sys.path.insert(0, '$CFG'); from config import latest_trade_date; print(latest_trade_date())")"
           fi
           case "$BASE" in
             [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
